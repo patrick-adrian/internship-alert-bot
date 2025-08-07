@@ -8,6 +8,7 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from dotenv import load_dotenv
+import requests
 
 # Load environment variables from .env
 load_dotenv()
@@ -16,7 +17,7 @@ load_dotenv()
 JOB_TRACK_FILE = "seen_jobs.json"
 SENDER = os.getenv("GMAIL_USER")
 APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD")
-RECIPIENT = SENDER  # or hardcode your email
+RECIPIENTS = os.getenv("EMAIL_RECIPIENTS", "").split(",")
 
 # ========== Load Seen Jobs ==========
 if os.path.exists(JOB_TRACK_FILE):
@@ -39,7 +40,7 @@ def get_driver():
 def scrape_amd(driver):
     url = "https://careers.amd.com/careers-home/jobs?keywords=intern&location=Markham,%20ON,%20Canada&stretch=10&stretchUnit=MILES&sortBy=relevance&page=1&woe=7&regionCode=CA"
     driver.get(url)
-    sleep(5)  # allow JS to render job list
+    sleep(10)  # allow JS to render job list
 
     jobs = driver.find_elements(By.CSS_SELECTOR, 'a.job-title-link')
     results = []
@@ -61,7 +62,7 @@ def scrape_amd(driver):
 def scrape_intel(driver):
     url = "https://intel.wd1.myworkdayjobs.com/External?q=intern&locations=1e4a4eb3adf1019f4237e975bf81b3ce"
     driver.get(url)
-    sleep(5)
+    sleep(10)
 
     results = []
     job_links = driver.find_elements(By.CSS_SELECTOR, 'a[data-automation-id="jobTitle"]')
@@ -79,29 +80,48 @@ def scrape_intel(driver):
 
 # ========== Email Sender ==========
 def send_email(jobs_dict):
-    subject = "New Internship Roles Found (AMD / Intel)"
-    body = ""
 
+    # Start body with header
+    body = "This is an automated email.\n\n"
+
+    # Add job details (or fallback message)
     for company, jobs in jobs_dict.items():
+        body += f"--- {company.upper()} ---\n"
         if jobs:
-            body += f"\n--- {company.upper()} ---\n"
+            subject = "New Internship Roles Update (AMD / Intel)"
             for job in jobs:
-                body += f"{job['title']}\n{job['link']}\n\n"
-
-    if not body.strip():
-        print("No new jobs to email.")
-        return
+                body += f"💼 {job['title']}\n🔗 {job['link']}\n\n"
+        else:
+            subject = "No New Internship Roles Update (AMD / Intel)"
+            body += "No new roles found.\n\n"
 
     msg = MIMEMultipart()
     msg["From"] = SENDER
-    msg["To"] = RECIPIENT
+    msg["To"] = ", ".join(RECIPIENTS)
     msg["Subject"] = subject
     msg.attach(MIMEText(body, "plain"))
 
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
         smtp.login(SENDER, APP_PASSWORD)
-        smtp.send_message(msg)
-        print("✅ Email sent.")
+        smtp.sendmail(SENDER, RECIPIENTS, msg.as_string())
+        print("📧 Email sent to:", ", ".join(RECIPIENTS))
+
+# ========== Telegram Sender ==========
+
+def send_telegram(jobs_dict, bot_token, chat_id):
+    if not any(jobs_dict.values()):
+        return
+
+    for company, jobs in jobs_dict.items():
+        if jobs:
+            for job in jobs:
+                message = f"🧪 *{company.upper()} Internship Found!*\n💼 {job['title']}\n🔗 [View Job]({job['link']})"
+                payload = {
+                    "chat_id": chat_id,
+                    "text": message,
+                    "parse_mode": "Markdown"
+                }
+                requests.post(f"https://api.telegram.org/bot{bot_token}/sendMessage", data=payload)
 
 # ========== Main ==========
 def main():
@@ -113,17 +133,17 @@ def main():
     finally:
         driver.quit()
 
-    if new_jobs["amd"] or new_jobs["intel"]:
-        send_email(new_jobs)
+    # Always send email, even if no new jobs found
+    send_email(new_jobs)
+    send_telegram(new_jobs, os.getenv("TELEGRAM_BOT_TOKEN"), os.getenv("TELEGRAM_CHAT_ID"))
 
-        # Update seen jobs list
-        for company in ["amd", "intel"]:
-            for job in new_jobs[company]:
-                seen_jobs[company].append(job["link"])
-        with open(JOB_TRACK_FILE, "w") as f:
-            json.dump(seen_jobs, f, indent=2)
-    else:
-        print("No new jobs found.")
+    # Still update the seen jobs list to avoid duplicates
+    for company in ["amd", "intel"]:
+        for job in new_jobs[company]:
+            seen_jobs[company].append(job["link"])
+
+    with open(JOB_TRACK_FILE, "w") as f:
+        json.dump(seen_jobs, f, indent=2)
 
 if __name__ == "__main__":
     main()

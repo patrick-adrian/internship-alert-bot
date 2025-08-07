@@ -2,8 +2,8 @@ name: Daily Internship Check
 
 on:
   schedule:
-    - cron: '0 14 * * *'  # 10:00 AM EST
-    - cron: '0 22 * * *'  # 6:00 PM EST
+    - cron: '0 13 * * 1-5'  # 8 AM EST / 5 AM PST, Mon–Fri
+    - cron: '0 17 * * 1-5'  # 12 PM EST / 9 AM PST, Mon–Fri
   workflow_dispatch:      # Manual trigger
 
 jobs:
