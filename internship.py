@@ -18,7 +18,7 @@ JOB_TRACK_FILE = "seen_jobs.json"
 SENDER = os.getenv("GMAIL_USER")
 APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD")
 RECIPIENTS = os.getenv("EMAIL_RECIPIENTS", "").split(",")
-
+print(RECIPIENTS)
 # ========== Load Seen Jobs ==========
 if os.path.exists(JOB_TRACK_FILE):
     with open(JOB_TRACK_FILE, "r") as f:
