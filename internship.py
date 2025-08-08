@@ -17,7 +17,7 @@ load_dotenv()
 JOB_TRACK_FILE = "seen_jobs.json"
 SENDER = os.getenv("GMAIL_USER")
 APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD")
-RECIPIENTS = os.getenv("EMAIL_RECIPIENTS", "").split(",")
+RECIPIENT = os.getenv("EMAIL_RECIPIENT")
 # ========== Load Seen Jobs ==========
 if os.path.exists(JOB_TRACK_FILE):
     with open(JOB_TRACK_FILE, "r") as f:
@@ -96,14 +96,14 @@ def send_email(jobs_dict):
 
     msg = MIMEMultipart()
     msg["From"] = SENDER
-    msg["To"] = ", ".join(RECIPIENTS)
+    msg["To"] = RECIPIENT
     msg["Subject"] = subject
     msg.attach(MIMEText(body, "plain"))
 
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
         smtp.login(SENDER, APP_PASSWORD)
-        smtp.sendmail(SENDER, RECIPIENTS, msg.as_string())
-        print("📧 Email sent to:", ", ".join(RECIPIENTS))
+        smtp.sendmail(SENDER, RECIPIENT, msg.as_string())
+        print("📧 Email sent to:", RECIPIENT)
 
 # ========== Telegram Sender ==========
 
